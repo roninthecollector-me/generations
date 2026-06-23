@@ -112,9 +112,11 @@
   @media (max-width:560px){.split2,.coord-wide{grid-template-columns:1fr 60px 1fr 60px}.lb-prev{left:6px}.lb-next{right:6px}}
 </style>
 <script src="config.js" onerror="window.__noConfig=1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="wrap">
+  <div id="pubBanner" style="display:none;background:var(--soil);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--bone-dim)"></div>
   <header>
     <div class="brand"><h1>Generations</h1><div class="sub">A panel map viewer</div></div>
     <div class="clock">
@@ -178,7 +180,13 @@
     <p class="note" style="max-width:640px">
       <b>Generations</b> assembles finished map panels by coordinate and lets you scrub through time with a <b>generation slider</b> — see the whole map as it looked at any point. Build a world panel by panel, physical or digital. Inspired by <i>Jerry's Map</i>.
     </p>
-    <p class="note" style="max-width:640px">Everything is stored <b>locally in your browser</b> — no account, works offline. Use the backup below to move a map between devices or keep it safe.</p>
+    <p class="note" style="max-width:640px">By default everything is stored <b>locally in your browser</b> — no account, works offline. Sign in below to sync across devices, or publish a read-only link to share a map.</p>
+
+    <h3 class="sec">Cloud sync</h3>
+    <div class="form" style="max-width:560px"><div id="authBox"></div></div>
+
+    <h3 class="sec">Share</h3>
+    <div class="form" style="max-width:560px"><div id="shareBox"></div></div>
 
     <h3 class="sec">This map</h3>
     <div class="form" style="max-width:560px">
@@ -217,7 +225,7 @@ const Store={
   async save(st){ try{ if(window.storage){await window.storage.set(KEY,JSON.stringify(st));return;} }catch(e){}
     try{ localStorage.setItem(KEY,JSON.stringify(st)); }catch(e){ flag('storage full — export a backup'); } }
 };
-async function persist(){ await Store.save(M); }
+async function persist(){ if(PUB) return; await Store.save(M); scheduleCloudPush(); }
 
 /* ===== IndexedDB image store (local-first) ===== */
 function imgDB(){ return new Promise((res,rej)=>{ const r=indexedDB.open('generations-img',1); r.onupgradeneeded=()=>r.result.createObjectStore('img'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
@@ -228,8 +236,11 @@ async function imgClear(){ const db=await imgDB(); return new Promise((res,rej)=
 
 const urlCache={};
 async function imgURL(key){
+  if(PUB) return PUB.urls[key]||null;                 // read-only shared view → public URLs
   if(urlCache[key]) return urlCache[key];
-  const blob=await imgGet(key); if(!blob) return null;
+  let blob=await imgGet(key);
+  if(!blob && cloudReady && sbUser){ blob=await cloudFetch(key); if(blob) await imgPut(key,blob); }  // pull from cloud, cache locally
+  if(!blob) return null;
   const u=URL.createObjectURL(blob); urlCache[key]=u; return u;
 }
 function dropURL(key){ if(urlCache[key]){ URL.revokeObjectURL(urlCache[key]); delete urlCache[key]; } }
@@ -280,6 +291,7 @@ async function uploadImage(coord,file){
     await imgPut(key,full.blob); await imgPut(key+'.thumb',thumb.blob);
     dropURL(key); dropURL(key+'.thumb');
     p.images=p.images||{}; p.images[String(gen)]={w:full.w,h:full.h,bytes:full.blob.size,uploadedAt:new Date().toISOString()};
+    if(cloudReady&&sbUser) await cloudUploadImage(coord,gen);
     await persist(); renderPanels(); renderHeader(); flag('image saved · gen '+gen);
   }catch(e){ console.warn(e); flag('image failed'); alert('Could not process that image: '+(e.message||e)); }
 }
@@ -287,13 +299,15 @@ async function removeImage(coord,gen){
   const p=M.panels.find(x=>x.coord===coord); if(!p||!(p.images&&p.images[String(gen)])) return;
   if(!confirm('Remove the gen '+gen+' image for '+coord+'?')) return;
   const key=imgKey(coord,gen); await imgDel(key); await imgDel(key+'.thumb'); dropURL(key); dropURL(key+'.thumb');
+  if(cloudReady&&sbUser){ try{ await sb.storage.from('panels').remove([sbUser.id+'/'+key+'.webp', sbUser.id+'/'+key+'.thumb.webp']); }catch(e){} }
   delete p.images[String(gen)]; await persist(); renderPanels();
   if(document.getElementById('v-map').classList.contains('active')) renderMap();
 }
 async function deletePanel(coord){
   const p=M.panels.find(x=>x.coord===coord); if(!p) return;
   if(!confirm('Delete panel '+coord+' and its images? This cannot be undone.')) return;
-  for(const g of Object.keys(p.images||{})){ const k=imgKey(coord,g); await imgDel(k); await imgDel(k+'.thumb'); dropURL(k); dropURL(k+'.thumb'); }
+  for(const g of Object.keys(p.images||{})){ const k=imgKey(coord,g); await imgDel(k); await imgDel(k+'.thumb'); dropURL(k); dropURL(k+'.thumb');
+    if(cloudReady&&sbUser){ try{ await sb.storage.from('panels').remove([sbUser.id+'/'+k+'.webp', sbUser.id+'/'+k+'.thumb.webp']); }catch(e){} } }
   M.panels=M.panels.filter(x=>x.coord!==coord); M.panels.forEach((x,i)=>x.order=i);
   if(M.currentPanel===coord) M.currentPanel=M.panels[0]?M.panels[0].coord:null;
   await persist(); renderAll();
@@ -400,8 +414,8 @@ function renderMap(){
   canvas.style.width=(cols*stepX-GAP)+'px'; canvas.style.height=(rows*stepY-GAP)+'px';
   const occupied=new Set(M.panels.map(p=>p.coord));
   let html='';
-  // empty addable cells
-  for(let y=minY;y<=maxY;y++) for(let x=minX;x<=maxX;x++){
+  // empty addable cells (hidden in read-only shared view)
+  if(!PUB) for(let y=minY;y<=maxY;y++) for(let x=minX;x<=maxX;x++){
     const coord=coordFromXY(x,y); if(occupied.has(coord)) continue;
     const gx=(x-minX)*stepX, gy=(y-minY)*stepY;
     html+=`<div class="map-add" style="left:${gx}px;top:${gy}px;width:${CW}px;height:${CH}px" data-add="${esc(coord)}" title="Add ${esc(coord)}"><span>+</span></div>`;
@@ -505,7 +519,7 @@ function newMap(){
 }
 
 /* ===== shell ===== */
-function renderAll(){ renderHeader(); renderPanels(); if(document.getElementById('v-map').classList.contains('active')) renderMap(); }
+function renderAll(){ renderHeader(); renderPanels(); renderAuth(); if(document.getElementById('v-map').classList.contains('active')) renderMap(); }
 function switchView(v){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===v)); document.querySelectorAll('.view').forEach(s=>s.classList.remove('active')); document.getElementById('v-'+v).classList.add('active'); if(v==='map') renderMap(); }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchView(t.dataset.view));
 
@@ -533,12 +547,139 @@ document.getElementById('btnBackup').onclick=exportBackup;
 document.getElementById('btnImport').onclick=()=>document.getElementById('importFile').click();
 document.getElementById('importFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ try{ importFromObject(JSON.parse(r.result)); }catch(err){ ioMsg('Could not read that file.'); } e.target.value=''; }; r.readAsText(f); };
 
+/* ===== cloud sync (Supabase) — optional, local-first stays the default ===== */
+const CFG=window.GENERATIONS_CONFIG||{};
+let sb=null, sbUser=null, cloudReady=false, syncTimer=null, PUB=null;
+async function initCloud(){
+  if(!CFG.supabaseUrl||!CFG.supabaseAnonKey||!window.supabase) return;
+  try{
+    sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey); cloudReady=true;
+    const {data:{session}}=await sb.auth.getSession(); sbUser=session?session.user:null;
+    sb.auth.onAuthStateChange(async(_e,sess)=>{ const was=sbUser; sbUser=sess?sess.user:null; renderAuth(); if(sbUser&&!was) await onSignIn(); else if(!sbUser&&was) renderAll(); });
+    renderAuth(); if(sbUser) await onSignIn();
+  }catch(e){ console.warn('cloud init failed',e); }
+}
+async function onSignIn(){
+  try{
+    const {data,error}=await sb.from('maps').select('data').eq('user_id',sbUser.id).maybeSingle();
+    if(error) throw error;
+    if(data&&data.data){ M=data.data; M.meta=M.meta||{name:'My Map'}; M.panels=M.panels||[]; M.settings=M.settings||{}; M.panels.forEach((p,i)=>{p.images=p.images||{};if(p.order==null)p.order=i;}); await Store.save(M); mapViewInit=false; renderAll(); flag('synced from cloud'); }
+    else { await seedCloudFromLocal(); }
+  }catch(e){ console.warn('cloud pull failed',e); }
+}
+async function seedCloudFromLocal(){
+  flag('uploading map to cloud…');
+  for(const p of M.panels){ for(const g of Object.keys(p.images||{})){ try{ await cloudUploadImage(p.coord,+g); }catch(e){} } }
+  await pushCloud(); renderAuth(); flag('cloud ready');
+}
+async function pushCloud(){ if(!(cloudReady&&sbUser)) return; try{ await sb.from('maps').upsert({user_id:sbUser.id,data:M,updated_at:new Date().toISOString()}); flag('saved · cloud'); }catch(e){ console.warn('push failed',e); } }
+function scheduleCloudPush(){ if(!(cloudReady&&sbUser)) return; clearTimeout(syncTimer); syncTimer=setTimeout(pushCloud,1200); }
+async function signInEmail(email){ if(sb){ await sb.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin+window.location.pathname}}); const m=document.getElementById('authMsg'); if(m)m.textContent='Check your email for the sign-in link.'; } }
+async function signOut(){ if(sb){ await sb.auth.signOut(); sbUser=null; renderAuth(); renderAll(); } }
+async function cloudFetch(key){
+  if(!(cloudReady&&sbUser)) return null;
+  try{ const {data,error}=await sb.storage.from('panels').createSignedUrl(sbUser.id+'/'+key+'.webp',3600); if(error||!data) return null;
+    const r=await fetch(data.signedUrl); if(!r.ok) return null; return await r.blob(); }catch(e){ return null; }
+}
+async function cloudUploadImage(coord,gen){
+  if(!(cloudReady&&sbUser)) return;
+  const full=await imgGet(imgKey(coord,gen)), thumb=await imgGet(imgKey(coord,gen)+'.thumb');
+  if(full) await sb.storage.from('panels').upload(sbUser.id+'/'+imgKey(coord,gen)+'.webp', full, {upsert:true,contentType:'image/webp'});
+  if(thumb) await sb.storage.from('panels').upload(sbUser.id+'/'+imgKey(coord,gen)+'.thumb.webp', thumb, {upsert:true,contentType:'image/webp'});
+}
+function renderAuth(){
+  const box=document.getElementById('authBox'); if(!box) return;
+  if(!cloudReady){ box.innerHTML='<div class="note">Cloud sync isn’t configured for this build.</div>'; return; }
+  if(!sbUser){
+    box.innerHTML='<div class="note" style="margin-bottom:10px">Sign in to sync your map and art across devices. The app keeps working locally without it.</div>'+
+      '<div style="display:flex;gap:8px"><input type="email" id="authEmail" placeholder="you@email.com" style="flex:1;background:var(--ink);border:1px solid var(--line);color:var(--bone);padding:9px 11px;border-radius:4px"><button class="btn" id="btnMagic">Send link</button></div><div class="note" id="authMsg" style="color:var(--verd);margin-top:8px;min-height:14px"></div>';
+    document.getElementById('btnMagic').onclick=()=>{ const e=(val('authEmail')||'').trim(); if(e) signInEmail(e); };
+  } else {
+    box.innerHTML='<div class="note" style="margin-bottom:10px">Signed in as <b>'+esc(sbUser.email||'you')+'</b> · your map syncs automatically.</div><div style="display:flex;gap:8px"><button class="btn ghost" id="btnSyncNow">Sync now</button><button class="btn ghost" id="btnSignOut">Sign out</button></div>';
+    document.getElementById('btnSyncNow').onclick=async()=>{ await pushCloud(); };
+    document.getElementById('btnSignOut').onclick=signOut;
+  }
+  renderShare();
+}
+function shareLink(){ return location.origin+location.pathname+'?map='+M.meta.shareId; }
+function renderShare(){
+  const box=document.getElementById('shareBox'); if(!box) return;
+  if(!(cloudReady&&sbUser)){ box.innerHTML='<div class="note">Sign in above to publish a public, read-only link to your map.</div>'; return; }
+  if(M.meta.shareId){
+    box.innerHTML='<div class="note" style="margin-bottom:8px">Published — anyone with this link can view (read-only):</div>'+
+      '<div style="display:flex;gap:8px;margin-bottom:8px"><input id="shareUrl" readonly value="'+esc(shareLink())+'" style="flex:1;background:var(--ink);border:1px solid var(--line);color:var(--bone);padding:9px 11px;border-radius:4px;font-family:var(--mono);font-size:12px"><button class="btn ghost" id="btnCopyLink">Copy</button></div>'+
+      '<div style="display:flex;gap:8px"><button class="btn" id="btnRepublish">Update published version</button><button class="btn ghost" id="btnUnpublish">Unpublish</button></div>';
+    document.getElementById('btnCopyLink').onclick=()=>{ const i=document.getElementById('shareUrl'); i.select(); try{document.execCommand('copy');}catch(e){} if(navigator.clipboard)navigator.clipboard.writeText(i.value).catch(()=>{}); flag('link copied'); };
+    document.getElementById('btnRepublish').onclick=publishMap;
+    document.getElementById('btnUnpublish').onclick=unpublishMap;
+  } else {
+    box.innerHTML='<div class="note" style="margin-bottom:10px">Publish a public, read-only link so anyone can browse this map and scrub its generations — no account needed to view.</div><button class="btn" id="btnPublish">Publish &amp; get link</button>';
+    document.getElementById('btnPublish').onclick=publishMap;
+  }
+}
+async function publishMap(){
+  if(!(cloudReady&&sbUser)){ alert('Sign in first to publish.'); return; }
+  if(!M.panels.length){ alert('Add some panels first.'); return; }
+  const shareId=M.meta.shareId||(uid()+uid()); M.meta.shareId=shareId;
+  flag('publishing…');
+  try{
+    const urls={}, panels=[];
+    for(const p of M.panels){
+      const po={coord:p.coord,label:p.label||'',founded:p.founded||0,gen:p.gen||1,images:{}};
+      for(const g of Object.keys(p.images||{})){
+        const fk=imgKey(p.coord,g), tk=fk+'.thumb';
+        const full=(await imgGet(fk))||(await cloudFetch(fk)), thumb=(await imgGet(tk))||(await cloudFetch(tk));
+        if(full){ const path=sbUser.id+'/'+shareId+'/'+coordNoSpace(p.coord)+'-gen'+g+'.webp'; await sb.storage.from('published').upload(path,full,{upsert:true,contentType:'image/webp'}); urls[fk]=sb.storage.from('published').getPublicUrl(path).data.publicUrl; }
+        if(thumb){ const path=sbUser.id+'/'+shareId+'/'+coordNoSpace(p.coord)+'-gen'+g+'.thumb.webp'; await sb.storage.from('published').upload(path,thumb,{upsert:true,contentType:'image/webp'}); urls[tk]=sb.storage.from('published').getPublicUrl(path).data.publicUrl; }
+        po.images[g]={w:(p.images[g]||{}).w,h:(p.images[g]||{}).h};
+      }
+      panels.push(po);
+    }
+    const data={name:M.meta.name||'A map',panels,urls,generated:new Date().toISOString()};
+    const {error}=await sb.from('published_maps').upsert({id:shareId,owner:sbUser.id,name:M.meta.name||'A map',data});
+    if(error) throw error;
+    await persist(); renderShare(); flag('published');
+    alert('Published! Share link copied below.');
+  }catch(e){ console.warn(e); alert('Publish failed: '+(e.message||e)); }
+}
+async function unpublishMap(){
+  if(!(cloudReady&&sbUser)||!M.meta.shareId) return;
+  if(!confirm('Unpublish this share link? It will stop working.')) return;
+  const shareId=M.meta.shareId;
+  try{
+    const {data:list}=await sb.storage.from('published').list(sbUser.id+'/'+shareId);
+    if(list&&list.length) await sb.storage.from('published').remove(list.map(o=>sbUser.id+'/'+shareId+'/'+o.name));
+    await sb.from('published_maps').delete().eq('id',shareId);
+  }catch(e){ console.warn(e); }
+  delete M.meta.shareId; await persist(); renderShare(); flag('unpublished');
+}
+/* read-only shared view via ?map=<id> */
+async function tryPublicView(){
+  const id=new URLSearchParams(location.search).get('map'); if(!id) return false;
+  if(!sb && CFG.supabaseUrl && window.supabase) sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey);
+  if(!sb) return false;
+  try{
+    const {data,error}=await sb.from('published_maps').select('name,data').eq('id',id).maybeSingle();
+    if(error||!data){ const b=document.getElementById('pubBanner'); if(b){ b.style.display='block'; b.innerHTML='That shared map could not be found. <a href="'+location.pathname+'" style="color:var(--gold)">Open Generations →</a>'; } return true; }
+    const d=data.data||{};
+    PUB={id,name:data.name,urls:d.urls||{}};
+    M={meta:{name:data.name||'Shared map'},panels:(d.panels||[]).map((p,i)=>({coord:p.coord,label:p.label||'',founded:p.founded||0,gen:p.gen||1,order:i,images:p.images||{}})),currentPanel:null,settings:{}};
+    document.querySelectorAll('.tab').forEach(t=>{ if(t.dataset.view!=='map') t.style.display='none'; });
+    const hint=document.querySelector('.map-hint'); if(hint) hint.textContent='Shared map · read-only';
+    const b=document.getElementById('pubBanner'); if(b){ b.style.display='block'; b.innerHTML='Viewing <b>'+esc(PUB.name||'a shared map')+'</b> — a shared Generations map. <a href="'+location.pathname+'" style="color:var(--gold)">Make your own →</a>'; }
+    renderHeader(); switchView('map'); renderMap();
+    return true;
+  }catch(e){ console.warn(e); return false; }
+}
+
 async function boot(){
+  if(await tryPublicView()) return;
   const saved=await Store.load();
   if(saved && saved.panels){ M=saved; }
   M.meta=M.meta||{name:'My Map'}; M.panels=M.panels||[]; M.settings=M.settings||{};
   M.panels.forEach((p,i)=>{ p.images=p.images||{}; if(p.order==null)p.order=i; });
   renderAll();
+  initCloud();
 }
 initMapUI();
 boot();
