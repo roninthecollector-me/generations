@@ -530,9 +530,14 @@ async function exportComposite(){
   const G=mapGen||maxGen();
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
   M.panels.forEach(p=>{ const{x,y}=xyOf(p.coord); minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y); });
-  const cols=maxX-minX+1, rows=maxY-minY+1, GAP=2, PAD=46, CAPH=64, MAXDIM=10000;
-  let cw=Math.min(360, Math.floor((MAXDIM-PAD*2-(cols-1)*GAP)/cols), Math.floor(((MAXDIM-PAD*2-CAPH-(rows-1)*GAP)/rows)/1.25));
-  cw=Math.max(80,cw); const ch=Math.round(cw*1.25);
+  const cols=maxX-minX+1, rows=maxY-minY+1;
+  // Render each panel at full resolution; margins/gap scale with the cell so it matches the preview look.
+  const TARGET=1800, MAXDIM=15000, MAXAREA=200e6, fPAD=0.12, fCAP=0.17, fGAP=0.006;
+  const wDen=2*fPAD+cols+(cols-1)*fGAP, hDen=2*fPAD+fCAP+1.25*rows+(rows-1)*1.25*fGAP;
+  let cw=Math.min(TARGET, MAXDIM/wDen, MAXDIM/hDen);
+  const aW=cw*wDen, aH=cw*hDen; if(aW*aH>MAXAREA) cw*=Math.sqrt(MAXAREA/(aW*aH));   // cap total canvas area for very large maps
+  cw=Math.max(80,Math.floor(cw));
+  const ch=Math.round(cw*1.25), GAP=Math.max(2,Math.round(cw*fGAP)), PAD=Math.round(cw*fPAD), CAPH=Math.round(cw*fCAP);
   const W=PAD*2+cols*cw+(cols-1)*GAP, H=PAD*2+CAPH+rows*ch+(rows-1)*GAP;
   const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d');
   ctx.fillStyle='#1a1714'; ctx.fillRect(0,0,W,H);
