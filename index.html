@@ -139,6 +139,7 @@
       <input type="range" id="mapGenRange" min="1" max="1" step="1" value="1">
       <span id="mapGenVal" class="map-gen-val">—</span>
       <button class="mini" id="mapResetView">Reset view</button>
+      <select id="mapFormat" style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 6px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ash)"><option value="png">PNG</option><option value="jpeg">JPEG</option></select>
       <button class="mini go" id="mapExport">Export image</button>
       <span class="map-hint">Click an empty cell to add a panel</span>
     </div>
@@ -559,7 +560,9 @@ async function exportComposite(){
   ctx.fillText(M.meta.name||'Map', PAD, PAD+CAPH*0.42);
   ctx.fillStyle='#8a8174'; ctx.font='600 '+Math.round(CAPH*0.2)+'px monospace'; ctx.textAlign='right';
   ctx.fillText('GENERATION '+G+'  ·  '+M.panels.length+' PANELS  ·  GENERATIONS', W-PAD, PAD+CAPH*0.42);
-  cv.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(M.meta.name||'map').replace(/[\\/:*?"<>|]/g,'')+'-gen'+G+'.png'; a.click(); flag('image exported'); },'image/png');
+  const fmt=((document.getElementById('mapFormat')||{}).value)||'png';
+  const type=fmt==='jpeg'?'image/jpeg':'image/png', ext=fmt==='jpeg'?'jpg':'png';
+  cv.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(M.meta.name||'map').replace(/[\\/:*?"<>|]/g,'')+'-gen'+G+'.'+ext; a.click(); flag('image exported'); }, type, fmt==='jpeg'?0.92:undefined);
 }
 
 /* ===== shell ===== */
