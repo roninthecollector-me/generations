@@ -139,6 +139,7 @@
       <input type="range" id="mapGenRange" min="1" max="1" step="1" value="1">
       <span id="mapGenVal" class="map-gen-val">—</span>
       <button class="mini" id="mapResetView">Reset view</button>
+      <button class="mini go" id="mapExport">Export image</button>
       <span class="map-hint">Click an empty cell to add a panel</span>
     </div>
     <div class="map-stage" id="mapStage"><div class="map-canvas" id="mapCanvas"></div></div>
@@ -518,6 +519,45 @@ function newMap(){
   mapViewInit=false; persist(); renderAll(); switchView('panels');
 }
 
+/* ===== export the whole map as one composited image ===== */
+async function imgBlobFor(coord,gen){
+  const fk=imgKey(coord,gen);
+  if(PUB){ const u=PUB.urls[fk]; if(!u) return null; try{ const r=await fetch(u); return r.ok?await r.blob():null; }catch(e){ return null; } }
+  return (await imgGet(fk)) || (await cloudFetch(fk));
+}
+async function exportComposite(){
+  if(!M.panels.length){ alert('Add some panels first.'); return; }
+  const G=mapGen||maxGen();
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  M.panels.forEach(p=>{ const{x,y}=xyOf(p.coord); minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y); });
+  const cols=maxX-minX+1, rows=maxY-minY+1, GAP=10, PAD=46, CAPH=64, MAXDIM=10000;
+  let cw=Math.min(360, Math.floor((MAXDIM-PAD*2-(cols-1)*GAP)/cols), Math.floor(((MAXDIM-PAD*2-CAPH-(rows-1)*GAP)/rows)/1.25));
+  cw=Math.max(80,cw); const ch=Math.round(cw*1.25);
+  const W=PAD*2+cols*cw+(cols-1)*GAP, H=PAD*2+CAPH+rows*ch+(rows-1)*GAP;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d');
+  ctx.fillStyle='#1a1714'; ctx.fillRect(0,0,W,H);
+  flag('rendering image…');
+  for(const p of M.panels){
+    const {x,y}=xyOf(p.coord); const gx=PAD+(x-minX)*(cw+GAP), gy=PAD+CAPH+(y-minY)*(ch+GAP);
+    const ig=latestImageAtGen(p,G); let drew=false;
+    if(ig!=null){ const blob=await imgBlobFor(p.coord,ig);
+      if(blob){ try{ const bm=await createImageBitmap(blob);
+        const s=Math.max(cw/bm.width, ch/bm.height), dw=bm.width*s, dh=bm.height*s, dx=gx+(cw-dw)/2, dy=gy+(ch-dh)/2;
+        ctx.save(); ctx.beginPath(); ctx.rect(gx,gy,cw,ch); ctx.clip(); ctx.drawImage(bm,dx,dy,dw,dh); ctx.restore(); drew=true; if(bm.close)bm.close();
+      }catch(e){} } }
+    if(!drew){ ctx.fillStyle='#242019'; ctx.fillRect(gx,gy,cw,ch); ctx.fillStyle='#5f594e'; ctx.font='600 '+Math.round(cw*0.12)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.coord,gx+cw/2,gy+ch/2); }
+    ctx.strokeStyle=(p.coord===M.currentPanel?'#c9a24b':'rgba(58,52,41,0.9)'); ctx.lineWidth=2; ctx.strokeRect(gx+1,gy+1,cw-2,ch-2);
+    const th=Math.max(15,Math.round(cw*0.085)); ctx.font='600 '+Math.round(th*0.66)+'px monospace'; const tw=ctx.measureText(p.coord).width+12;
+    ctx.fillStyle='rgba(20,18,13,0.8)'; ctx.fillRect(gx+5,gy+ch-5-th,tw,th);
+    ctx.fillStyle='#c9a24b'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(p.coord,gx+11,gy+ch-5-th/2);
+  }
+  ctx.fillStyle='#e9e1d0'; ctx.font='600 '+Math.round(CAPH*0.42)+'px Georgia, serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText(M.meta.name||'Map', PAD, PAD+CAPH*0.42);
+  ctx.fillStyle='#8a8174'; ctx.font='600 '+Math.round(CAPH*0.2)+'px monospace'; ctx.textAlign='right';
+  ctx.fillText('GENERATION '+G+'  ·  '+M.panels.length+' PANELS  ·  GENERATIONS', W-PAD, PAD+CAPH*0.42);
+  cv.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(M.meta.name||'map').replace(/[\\/:*?"<>|]/g,'')+'-gen'+G+'.png'; a.click(); flag('image exported'); },'image/png');
+}
+
 /* ===== shell ===== */
 function renderAll(){ renderHeader(); renderPanels(); renderAuth(); if(document.getElementById('v-map').classList.contains('active')) renderMap(); }
 function switchView(v){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===v)); document.querySelectorAll('.view').forEach(s=>s.classList.remove('active')); document.getElementById('v-'+v).classList.add('active'); if(v==='map') renderMap(); }
@@ -533,6 +573,7 @@ function initMapUI(){
   setupPanZoom();
   document.getElementById('mapGenRange').oninput=function(){ mapGen=+this.value; renderMap(); };
   document.getElementById('mapResetView').onclick=()=>{ mapView={scale:1,x:0,y:0}; centerMap(); applyMapTransform(); };
+  document.getElementById('mapExport').onclick=exportComposite;
   document.getElementById('lbClose').onclick=closeLightbox;
   document.getElementById('lbPrev').onclick=()=>{ if(lbState&&lbState.idx>0){ lbState.idx--; showLightbox(); } };
   document.getElementById('lbNext').onclick=()=>{ if(lbState&&lbState.idx<lbState.gens.length-1){ lbState.idx++; showLightbox(); } };
