@@ -3,24 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Generations — a panel map viewer</title>
+<title>Generations · a panel map viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#1a1714;--soil:#242019;--soil2:#2c271f;
-    --bone:#e9e1d0;--bone-dim:#d4cab4;
-    --ember:#a6362f;--verd:#6f8b78;--verd-deep:#3c4d43;
-    --gold:#c9a24b;--ash:#8a8174;--ash-dim:#5f594e;--line:#3a3429;--violet:#9a6fc4;
-    --display:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
-    --body:Georgia,"Times New Roman",serif;
-    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --bone:#ece4d4;--bone-dim:#d4cab4;
+    --ember:#c2554c;--ember-deep:#a6362f;--verd:#7fa890;--verd-deep:#3c4d43;
+    --gold:#d2ab57;--ash:#8a8174;--ash-dim:#5f594e;--line:#3a3429;--violet:#a37cd0;
+    --display:"Fraunces","Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --body:"Newsreader",Georgia,"Times New Roman",serif;
+    --mono:"Spline Sans Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
   body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#2a251d,transparent 60%),var(--ink);
-    color:var(--bone-dim);font-family:var(--body);min-height:100vh;-webkit-font-smoothing:antialiased}
+    color:var(--bone-dim);font-family:var(--body);font-optical-sizing:auto;min-height:100vh;-webkit-font-smoothing:antialiased}
+  /* cartographic chrome: a thin chart frame with corner registration marks */
+  .frame{position:fixed;inset:0;z-index:8;pointer-events:none}
+  .frame .rule{position:absolute;inset:9px;border:1px solid var(--line);border-radius:2px}
+  .reg{position:absolute;width:13px;height:13px;color:var(--ash-dim)}
+  .reg::before,.reg::after{content:"";position:absolute;background:currentColor}
+  .reg::before{left:50%;top:0;width:1px;height:100%;transform:translateX(-.5px)}
+  .reg::after{top:50%;left:0;height:1px;width:100%;transform:translateY(-.5px)}
+  .reg.tl{left:4px;top:4px}.reg.tr{right:4px;top:4px}.reg.bl{left:4px;bottom:4px}.reg.br{right:4px;bottom:4px}
   .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 80px}
   header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding-bottom:16px}
-  .brand h1{font-family:var(--display);font-weight:500;font-size:27px;margin:0;color:var(--bone);letter-spacing:.5px}
-  .brand .sub{font-family:var(--mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--ash);margin-top:4px}
+  .brand{display:flex;align-items:center;gap:13px}
+  .brand .seal{width:36px;height:36px;flex:0 0 auto;color:var(--gold)}
+  .brand h1{font-family:var(--display);font-weight:500;font-size:28px;margin:0;color:var(--bone);letter-spacing:-.3px;line-height:1}
+  .brand .sub{font-family:var(--mono);font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--ash);margin-top:5px}
   .clock{display:flex;gap:16px;align-items:flex-end}
   .stat{text-align:right}
   .stat .v{font-family:var(--mono);font-size:20px;color:var(--gold);line-height:1}
@@ -37,7 +50,9 @@
 
   .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
   .toolbar h2{font-family:var(--display);font-weight:500;font-size:20px;margin:0;color:var(--bone)}
-  h3.sec{font-family:var(--display);font-weight:500;font-size:17px;color:var(--bone);margin:22px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  h3.sec{font-family:var(--display);font-weight:500;font-size:18px;color:var(--bone);margin:24px 0 12px;padding-bottom:9px;position:relative;letter-spacing:-.2px}
+  h3.sec::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;border-bottom:1px solid var(--line);
+    background-image:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 24px)}
   .pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:3px 9px;border-radius:14px;border:1px solid var(--verd-deep);color:var(--verd)}
   .pill.cur{border-color:var(--gold);color:var(--gold)}
   .empty{font-family:var(--mono);font-size:12px;color:var(--ash-dim);letter-spacing:1px;padding:26px;text-align:center;border:1px dashed var(--line);border-radius:8px}
@@ -74,8 +89,24 @@
   .map-gen-label{font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ash)}
   #mapGenRange{flex:1;min-width:160px;accent-color:var(--gold)}
   .map-gen-val{font-family:var(--mono);font-size:13px;color:var(--gold);min-width:120px}
-  .map-hint{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--ash-dim);margin-left:auto}
+  .map-hint{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--ash);margin-left:auto}
   .map-stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:radial-gradient(900px 460px at 50% -10%,#2a251d,transparent 60%),var(--ink);height:64vh;min-height:380px;cursor:grab}
+  .map-stage::before,.map-stage::after{content:"";position:absolute;width:14px;height:14px;z-index:3;pointer-events:none;color:var(--ash-dim)}
+  .map-stage::before{left:9px;top:9px;border-left:1px solid currentColor;border-top:1px solid currentColor}
+  .map-stage::after{right:9px;bottom:9px;border-right:1px solid currentColor;border-bottom:1px solid currentColor}
+  /* first-run welcome: a prepared chart sheet, not a blank void */
+  .map-empty{position:absolute;inset:0;z-index:4;display:none;align-items:center;justify-content:center;text-align:center;padding:28px;
+    background:radial-gradient(560px 380px at 50% 44%, rgba(26,23,20,.6), rgba(18,16,12,.92) 72%)}
+  .map-empty .seal-mark{position:absolute;width:300px;height:300px;color:var(--gold);opacity:.06;pointer-events:none}
+  .map-empty .card{position:relative;max-width:400px}
+  .map-empty .stamp{font-family:var(--mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);display:inline-flex;align-items:center;gap:9px;margin-bottom:16px}
+  .map-empty .stamp::before{content:"";width:26px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}
+  .map-empty h3{font-family:var(--display);font-weight:500;font-size:31px;color:var(--bone);margin:0 0 13px;letter-spacing:-.3px}
+  .map-empty p{font-family:var(--body);font-size:15px;line-height:1.65;color:var(--bone-dim);margin:0 auto;max-width:34ch}
+  .map-empty .reassure{font-family:var(--mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ash);margin:16px 0 22px}
+  .map-empty .start{font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;padding:13px 24px;border-radius:6px;cursor:pointer;
+    border:1px solid var(--gold);background:linear-gradient(150deg,rgba(210,171,87,.22),rgba(210,171,87,.08));color:var(--gold);transition:background .2s,color .2s,transform .15s}
+  .map-empty .start:hover{background:rgba(210,171,87,.3);color:var(--bone);transform:translateY(-1px)}
   .map-stage.grabbing{cursor:grabbing}
   .map-canvas{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
   .map-cell{position:absolute;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--soil2);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
@@ -107,6 +138,9 @@
   .lb-prev{left:-54px}.lb-next{right:-54px}
 
   .foot{margin-top:22px;font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--ash-dim)}
+  /* accessibility: visible keyboard focus + reduced-motion */
+  .tab:focus-visible,.btn:focus-visible,.mini:focus-visible,.map-empty .start:focus-visible,.lb-close:focus-visible,.lb-nav:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  @media(prefers-reduced-motion:reduce){.view.active{animation:none}.map-empty .start{transition:none}}
   input[type=file]{display:none}
   canvas#panelCv{display:none}
   @media (max-width:560px){.split2,.coord-wide{grid-template-columns:1fr 60px 1fr 60px}.lb-prev{left:6px}.lb-next{right:6px}}
@@ -115,10 +149,21 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<div class="frame" aria-hidden="true"><div class="rule"></div><i class="reg tl"></i><i class="reg tr"></i><i class="reg bl"></i><i class="reg br"></i></div>
 <div class="wrap">
   <div id="pubBanner" style="display:none;background:var(--soil);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--bone-dim)"></div>
   <header>
-    <div class="brand"><h1>Generations</h1><div class="sub">A panel map viewer</div></div>
+    <div class="brand">
+      <svg class="seal" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <circle cx="50" cy="50" r="37" fill="none" stroke="currentColor" stroke-width=".6" opacity=".5"/>
+        <path d="M50 7 L56 50 L50 93 L44 50 Z" fill="#c2554c"/>
+        <path d="M7 50 L50 44 L93 50 L50 56 Z" fill="none" stroke="#7fa890" stroke-width="1.4"/>
+        <path d="M22 22 L52 48 M78 22 L48 48 M22 78 L48 52 M78 78 L52 52" stroke="currentColor" stroke-width=".7" opacity=".55"/>
+        <circle cx="50" cy="50" r="3.4" fill="currentColor"/>
+      </svg>
+      <div><h1>Generations</h1><div class="sub">A panel map viewer</div></div>
+    </div>
     <div class="clock">
       <div class="stat cur"><div class="v" id="hCur">—</div><div class="l">Current panel</div></div>
       <div class="stat"><div class="v" id="hPanels">0</div><div class="l">Panels</div></div>
@@ -143,7 +188,25 @@
       <button class="mini go" id="mapExport">Export image</button>
       <span class="map-hint">Click an empty cell to add a panel</span>
     </div>
-    <div class="map-stage" id="mapStage"><div class="map-canvas" id="mapCanvas"></div></div>
+    <div class="map-stage" id="mapStage">
+      <div class="map-canvas" id="mapCanvas"></div>
+      <div class="map-empty" id="mapEmpty">
+        <svg class="seal-mark" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="1"/>
+          <circle cx="50" cy="50" r="36" fill="none" stroke="currentColor" stroke-width=".5"/>
+          <path d="M50 6 L55 50 L50 94 L45 50 Z" fill="currentColor"/>
+          <path d="M6 50 L50 45 L94 50 L50 55 Z" fill="none" stroke="currentColor" stroke-width="1"/>
+          <path d="M21 21 L52 48 M79 21 L48 48 M21 79 L48 52 M79 79 L52 52" stroke="currentColor" stroke-width=".5"/>
+        </svg>
+        <div class="card">
+          <div class="stamp">N0 E0 · Origin</div>
+          <h3>Begin your map.</h3>
+          <p>Place your first panel at the origin, then grow the world outward, one panel at a time. Upload art and bump a panel's generation as it changes.</p>
+          <div class="reassure">Stays in your browser · no account needed</div>
+          <button class="start" id="mapEmptyAdd" type="button">Place the first panel</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <div class="lightbox" id="lightbox">
@@ -171,7 +234,7 @@
         <div class="field"><label>Founded / year (optional)</label><input type="number" id="apFounded" value="0" min="0"></div>
       </div>
       <button class="btn" id="apAdd" style="width:100%">Add panel</button>
-      <div class="note" style="margin-top:8px">Adds the panel and makes it current. Upload art and bump its generation from the list below — or just click an empty cell on the Map.</div>
+      <div class="note" style="margin-top:8px">Adds the panel and makes it current. Upload art and bump its generation from the list below, or just click an empty cell on the Map.</div>
     </div>
     <h3 class="sec">All panels</h3>
     <div id="panelList"></div>
@@ -180,9 +243,9 @@
   <section class="view" id="v-about">
     <div class="toolbar"><h2>Settings</h2></div>
     <p class="note" style="max-width:640px">
-      <b>Generations</b> assembles finished map panels by coordinate and lets you scrub through time with a <b>generation slider</b> — see the whole map as it looked at any point. Build a world panel by panel, physical or digital. Inspired by <i>Jerry's Map</i>.
+      <b>Generations</b> assembles finished map panels by coordinate and lets you scrub through time with a <b>generation slider</b>: see the whole map as it looked at any point. Build a world panel by panel, physical or digital. Inspired by <i>Jerry's Map</i>.
     </p>
-    <p class="note" style="max-width:640px">By default everything is stored <b>locally in your browser</b> — no account, works offline. Sign in below to sync across devices, or publish a read-only link to share a map.</p>
+    <p class="note" style="max-width:640px">By default everything is stored <b>locally in your browser</b>: no account, works offline. Sign in below to sync across devices, or publish a read-only link to share a map.</p>
 
     <h3 class="sec">Cloud sync</h3>
     <div class="form" style="max-width:560px"><div id="authBox"></div></div>
@@ -195,9 +258,9 @@
       <div class="field"><label>Map name</label><input type="text" id="mapNameInput" placeholder="My Map"></div>
       <div class="field"><label>Panel shape</label>
         <select id="mapShape">
-          <option value="portrait">Portrait — 8×10 (tall)</option>
-          <option value="square">Square — e.g. 4×4</option>
-          <option value="landscape">Landscape — 10×8 (wide)</option>
+          <option value="portrait">Portrait · 8×10 (tall)</option>
+          <option value="square">Square · e.g. 4×4</option>
+          <option value="landscape">Landscape · 10×8 (wide)</option>
         </select>
         <div class="note" style="margin-top:6px">Sets the cell shape across the map, export, and print templates.</div>
       </div>
@@ -421,7 +484,15 @@ function renderMap(){
   if(mapObserver){ mapObserver.disconnect(); mapObserver=null; }
   status.textContent = M.panels.length? (M.panels.length+' panel'+(M.panels.length===1?'':'s')) : 'empty';
   const mg=maxGen(); if(mapGen==null||mapGen>mg) mapGen=mg; if(mapGen<1) mapGen=1;
-  controls.style.display='flex';
+  // progressive disclosure: on an empty map, hide the slider/export noise and welcome the maker instead
+  const hasPanels=M.panels.length>0;
+  controls.style.display=hasPanels?'flex':'none';
+  const emptyEl=document.getElementById('mapEmpty');
+  if(emptyEl){
+    const showWelcome=!hasPanels && !PUB;
+    emptyEl.style.display=showWelcome?'flex':'none';
+    if(showWelcome){ const b=document.getElementById('mapEmptyAdd'); if(b) b.onclick=()=>{ if(addPanel(coordFromXY(0,0),'',0)){ persist(); renderAll(); } }; }
+  }
   const range=document.getElementById('mapGenRange'); range.min=1; range.max=mg; range.value=mapGen;
   document.getElementById('mapGenVal').textContent='Gen '+mapGen+(mg>1?' / '+mg:'');
   // bounds (expanded by one ring so you can extend the map by clicking)
