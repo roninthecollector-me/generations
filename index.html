@@ -193,6 +193,14 @@
     <h3 class="sec">This map</h3>
     <div class="form" style="max-width:560px">
       <div class="field"><label>Map name</label><input type="text" id="mapNameInput" placeholder="My Map"></div>
+      <div class="field"><label>Panel shape</label>
+        <select id="mapShape">
+          <option value="portrait">Portrait — 8×10 (tall)</option>
+          <option value="square">Square — e.g. 4×4</option>
+          <option value="landscape">Landscape — 10×8 (wide)</option>
+        </select>
+        <div class="note" style="margin-top:6px">Sets the cell shape across the map, export, and print templates.</div>
+      </div>
       <div class="split2">
         <button class="btn ghost" id="btnNew">New map</button>
         <button class="btn ghost" id="btnTemplateAll">Print all templates</button>
@@ -317,7 +325,8 @@ async function deletePanel(coord){
 
 /* ===== panel template canvas ===== */
 function drawPanelCanvas(s){
-  const cv=document.getElementById('panelCv'),ctx=cv.getContext('2d'),W=2400,H=3000,IN=300;
+  const cv=document.getElementById('panelCv'),ctx=cv.getContext('2d'),W=2400,H=Math.round(2400*panelAspect()),IN=300;
+  cv.width=W; cv.height=H;
   const RR=(x,y,w,h,r)=>{ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();};
   ctx.fillStyle='#ece4d1';ctx.fillRect(0,0,W,H);
   ctx.strokeStyle='rgba(120,100,70,0.10)';ctx.lineWidth=1;
@@ -354,6 +363,7 @@ function renderHeader(){
   document.getElementById('hGen').textContent=maxGen();
   document.getElementById('mapName').textContent=M.meta.name||'My Map';
   const mi=document.getElementById('mapNameInput'); if(mi && document.activeElement!==mi) mi.value=M.meta.name||'';
+  const ms=document.getElementById('mapShape'); if(ms) ms.value=(M.settings&&M.settings.panelShape)||'portrait';
 }
 function panelImagesHTML(p){
   const gens=imageGensFor(p); if(!gens.length) return '';
@@ -392,7 +402,9 @@ function renderPanels(){
 
 /* ===== map ===== */
 let mapGen=null, mapView={scale:1,x:0,y:0}, mapViewInit=false, mapObserver=null, mapWired=false;
-const CW=128, CH=160, GAP=8;
+const CW=128, GAP=8;
+// Per-map panel shape → cell aspect (height ÷ width). Default 8×10 portrait.
+function panelAspect(){ const s=(M.settings&&M.settings.panelShape)||'portrait'; return s==='square'?1:(s==='landscape'?0.8:1.25); }
 function xyOf(coord){ const c=parseCoord(coord); return { x:(c.ed==='W'?-c.em:c.em), y:-(c.nd==='S'?-c.nm:c.nm) }; }
 function coordFromXY(x,y){ const ns=-y; return normCoord(Math.abs(ns), ns<0?'S':'N', Math.abs(x), x<0?'W':'E'); }
 function applyMapTransform(){ const c=document.getElementById('mapCanvas'); if(c) c.style.transform='translate('+mapView.x+'px,'+mapView.y+'px) scale('+mapView.scale+')'; }
@@ -412,6 +424,7 @@ function renderMap(){
   if(M.panels.length){ minX=Infinity;maxX=-Infinity;minY=Infinity;maxY=-Infinity;
     M.panels.forEach(p=>{ const {x,y}=xyOf(p.coord); minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y); }); }
   minX--;maxX++;minY--;maxY++;
+  const CH=Math.round(CW*panelAspect());
   const cols=maxX-minX+1, rows=maxY-minY+1, stepX=CW+GAP, stepY=CH+GAP;
   canvas.style.width=(cols*stepX-GAP)+'px'; canvas.style.height=(rows*stepY-GAP)+'px';
   const occupied=new Set(M.panels.map(p=>p.coord));
@@ -484,7 +497,7 @@ function blobToDataURL(blob){ return new Promise(res=>{ const r=new FileReader()
 function dataURLToBlob(u){ const [h,b]=u.split(','); const mime=(h.match(/:(.*?);/)||[])[1]||'image/webp'; const bin=atob(b); const a=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i); return new Blob([a],{type:mime}); }
 async function exportBackup(){
   flag('building backup…');
-  const data={ __generationsBackup:1, version:1, meta:M.meta, panels:M.panels, currentPanel:M.currentPanel, images:{} };
+  const data={ __generationsBackup:1, version:1, meta:M.meta, settings:M.settings, panels:M.panels, currentPanel:M.currentPanel, images:{} };
   for(const p of M.panels){ for(const g of Object.keys(p.images||{})){
     const full=await imgGet(imgKey(p.coord,g)), thumb=await imgGet(imgKey(p.coord,g)+'.thumb');
     if(full) data.images[imgKey(p.coord,g)]=await blobToDataURL(full);
@@ -495,7 +508,7 @@ async function exportBackup(){
 }
 async function importFromObject(obj){
   if(obj && obj.__generationsBackup){
-    M.meta=obj.meta||M.meta; M.currentPanel=obj.currentPanel||null;
+    M.meta=obj.meta||M.meta; M.settings=obj.settings||M.settings||{}; M.currentPanel=obj.currentPanel||null;
     M.panels=(obj.panels||[]).map((p,i)=>({coord:p.coord,label:p.label||'',founded:p.founded||0,gen:p.gen||1,order:i,images:p.images||{}}));
     await imgClear(); Object.keys(urlCache).forEach(dropURL);
     for(const k of Object.keys(obj.images||{})){ try{ await imgPut(k,dataURLToBlob(obj.images[k])); }catch(e){} }
@@ -533,12 +546,13 @@ async function exportComposite(){
   M.panels.forEach(p=>{ const{x,y}=xyOf(p.coord); minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y); });
   const cols=maxX-minX+1, rows=maxY-minY+1;
   // Render each panel at full resolution; margins/gap scale with the cell so it matches the preview look.
+  const AR=panelAspect();
   const TARGET=1800, MAXDIM=15000, MAXAREA=200e6, fPAD=0.12, fCAP=0.17, fGAP=0.006;
-  const wDen=2*fPAD+cols+(cols-1)*fGAP, hDen=2*fPAD+fCAP+1.25*rows+(rows-1)*1.25*fGAP;
+  const wDen=2*fPAD+cols+(cols-1)*fGAP, hDen=2*fPAD+fCAP+AR*rows+(rows-1)*AR*fGAP;
   let cw=Math.min(TARGET, MAXDIM/wDen, MAXDIM/hDen);
   const aW=cw*wDen, aH=cw*hDen; if(aW*aH>MAXAREA) cw*=Math.sqrt(MAXAREA/(aW*aH));   // cap total canvas area for very large maps
   cw=Math.max(80,Math.floor(cw));
-  const ch=Math.round(cw*1.25), GAP=Math.max(2,Math.round(cw*fGAP)), PAD=Math.round(cw*fPAD), CAPH=Math.round(cw*fCAP);
+  const ch=Math.round(cw*AR), GAP=Math.max(2,Math.round(cw*fGAP)), PAD=Math.round(cw*fPAD), CAPH=Math.round(cw*fCAP);
   const W=PAD*2+cols*cw+(cols-1)*GAP, H=PAD*2+CAPH+rows*ch+(rows-1)*GAP;
   const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d');
   ctx.fillStyle='#1a1714'; ctx.fillRect(0,0,W,H);
@@ -589,6 +603,7 @@ function initMapUI(){
     if(e.key==='Escape')closeLightbox(); else if(e.key==='ArrowLeft')document.getElementById('lbPrev').click(); else if(e.key==='ArrowRight')document.getElementById('lbNext').click(); });
 }
 document.getElementById('mapNameInput').oninput=e=>{ M.meta.name=e.target.value.trim()||'My Map'; document.getElementById('mapName').textContent=M.meta.name; persist(); };
+document.getElementById('mapShape').onchange=e=>{ M.settings=M.settings||{}; M.settings.panelShape=e.target.value; persist(); mapViewInit=false; renderAll(); };
 document.getElementById('btnNew').onclick=newMap;
 document.getElementById('btnTemplateAll').onclick=()=>{ if(!M.panels.length){alert('No panels yet.');return;} M.panels.forEach((p,i)=>setTimeout(()=>downloadTemplate(p.coord),i*250)); };
 document.getElementById('btnBackup').onclick=exportBackup;
@@ -687,7 +702,7 @@ async function publishMap(){
       }
       panels.push(po);
     }
-    const data={name:M.meta.name||'A map',panels,urls,generated:new Date().toISOString()};
+    const data={name:M.meta.name||'A map',panels,urls,panelShape:(M.settings&&M.settings.panelShape)||'portrait',generated:new Date().toISOString()};
     const {error}=await sb.from('published_maps').upsert({id:shareId,owner:sbUser.id,name:M.meta.name||'A map',data});
     if(error) throw error;
     await persist(); renderShare(); flag('published');
@@ -715,7 +730,7 @@ async function tryPublicView(){
     if(error||!data){ const b=document.getElementById('pubBanner'); if(b){ b.style.display='block'; b.innerHTML='That shared map could not be found. <a href="'+location.pathname+'" style="color:var(--gold)">Open Generations →</a>'; } return true; }
     const d=data.data||{};
     PUB={id,name:data.name,urls:d.urls||{}};
-    M={meta:{name:data.name||'Shared map'},panels:(d.panels||[]).map((p,i)=>({coord:p.coord,label:p.label||'',founded:p.founded||0,gen:p.gen||1,order:i,images:p.images||{}})),currentPanel:null,settings:{}};
+    M={meta:{name:data.name||'Shared map'},panels:(d.panels||[]).map((p,i)=>({coord:p.coord,label:p.label||'',founded:p.founded||0,gen:p.gen||1,order:i,images:p.images||{}})),currentPanel:null,settings:{panelShape:d.panelShape||'portrait'}};
     document.querySelectorAll('.tab').forEach(t=>{ if(t.dataset.view!=='map') t.style.display='none'; });
     const hint=document.querySelector('.map-hint'); if(hint) hint.textContent='Shared map · read-only';
     const b=document.getElementById('pubBanner'); if(b){ b.style.display='block'; b.innerHTML='Viewing <b>'+esc(PUB.name||'a shared map')+'</b> — a shared Generations map. <a href="'+location.pathname+'" style="color:var(--gold)">Make your own →</a>'; }
