@@ -615,6 +615,7 @@ async function seedCloudFromLocal(){
 async function pushCloud(){ if(!(cloudReady&&sbUser)) return; try{ await sb.from('maps').upsert({user_id:sbUser.id,data:M,updated_at:new Date().toISOString()}); flag('saved · cloud'); }catch(e){ console.warn('push failed',e); } }
 function scheduleCloudPush(){ if(!(cloudReady&&sbUser)) return; clearTimeout(syncTimer); syncTimer=setTimeout(pushCloud,1200); }
 async function signInEmail(email){ if(sb){ await sb.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin+window.location.pathname}}); const m=document.getElementById('authMsg'); if(m)m.textContent='Check your email for the sign-in link.'; } }
+async function signInGoogle(){ if(sb) await sb.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: window.location.origin+window.location.pathname } }); }
 async function signOut(){ if(sb){ await sb.auth.signOut(); sbUser=null; renderAuth(); renderAll(); } }
 async function cloudFetch(key){
   if(!(cloudReady&&sbUser)) return null;
@@ -632,7 +633,10 @@ function renderAuth(){
   if(!cloudReady){ box.innerHTML='<div class="note">Cloud sync isn’t configured for this build.</div>'; return; }
   if(!sbUser){
     box.innerHTML='<div class="note" style="margin-bottom:10px">Sign in to sync your map and art across devices. The app keeps working locally without it.</div>'+
-      '<div style="display:flex;gap:8px"><input type="email" id="authEmail" placeholder="you@email.com" style="flex:1;background:var(--ink);border:1px solid var(--line);color:var(--bone);padding:9px 11px;border-radius:4px"><button class="btn" id="btnMagic">Send link</button></div><div class="note" id="authMsg" style="color:var(--verd);margin-top:8px;min-height:14px"></div>';
+      '<button class="btn" id="btnGoogle" style="width:100%;margin-bottom:10px">Continue with Google</button>'+
+      '<div class="note" style="text-align:center;margin:0 0 10px;color:var(--ash-dim);font-family:var(--mono);font-size:10px;letter-spacing:1px">OR EMAIL ME A LINK</div>'+
+      '<div style="display:flex;gap:8px"><input type="email" id="authEmail" placeholder="you@email.com" style="flex:1;background:var(--ink);border:1px solid var(--line);color:var(--bone);padding:9px 11px;border-radius:4px"><button class="btn ghost" id="btnMagic">Send link</button></div><div class="note" id="authMsg" style="color:var(--verd);margin-top:8px;min-height:14px"></div>';
+    document.getElementById('btnGoogle').onclick=signInGoogle;
     document.getElementById('btnMagic').onclick=()=>{ const e=(val('authEmail')||'').trim(); if(e) signInEmail(e); };
   } else {
     box.innerHTML='<div class="note" style="margin-bottom:10px">Signed in as <b>'+esc(sbUser.email||'you')+'</b> · your map syncs automatically.</div><div style="display:flex;gap:8px"><button class="btn ghost" id="btnSyncNow">Sync now</button><button class="btn ghost" id="btnSignOut">Sign out</button></div>';
