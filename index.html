@@ -184,6 +184,7 @@
       <input type="range" id="mapGenRange" min="1" max="1" step="1" value="1">
       <span id="mapGenVal" class="map-gen-val">—</span>
       <button class="mini" id="mapResetView">Reset view</button>
+      <select id="mapRes" title="Export resolution" style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 6px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ash)"><option value="1800">Full res</option><option value="1000">Large</option><option value="550">Web</option></select>
       <select id="mapFormat" style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 6px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ash)"><option value="png">PNG</option><option value="jpeg">JPEG</option></select>
       <button class="mini go" id="mapExport">Export image</button>
       <span class="map-hint">Click an empty cell to add a panel</span>
@@ -623,7 +624,8 @@ async function exportComposite(){
   const cols=maxX-minX+1, rows=maxY-minY+1;
   // Render each panel at full resolution; margins/gap scale with the cell so it matches the preview look.
   const AR=panelAspect();
-  const TARGET=1800, MAXDIM=15000, MAXAREA=200e6, fPAD=0.12, fCAP=0.17, fGAP=0.006;
+  const TARGET=parseInt(((document.getElementById('mapRes')||{}).value))||1800;   // per-panel px: Full 1800 / Large 1000 / Web 550 (smaller = lighter file for sharing)
+  const MAXDIM=15000, MAXAREA=200e6, fPAD=0.12, fCAP=0.17, fGAP=0.006;
   const wDen=2*fPAD+cols+(cols-1)*fGAP, hDen=2*fPAD+fCAP+AR*rows+(rows-1)*AR*fGAP;
   let cw=Math.min(TARGET, MAXDIM/wDen, MAXDIM/hDen);
   const aW=cw*wDen, aH=cw*hDen; if(aW*aH>MAXAREA) cw*=Math.sqrt(MAXAREA/(aW*aH));   // cap total canvas area for very large maps
@@ -652,7 +654,7 @@ async function exportComposite(){
   ctx.fillText('GENERATION '+G+'  ·  '+M.panels.length+' PANELS  ·  GENERATIONS', W-PAD, PAD+CAPH*0.42);
   const fmt=((document.getElementById('mapFormat')||{}).value)||'png';
   const type=fmt==='jpeg'?'image/jpeg':'image/png', ext=fmt==='jpeg'?'jpg':'png';
-  cv.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(M.meta.name||'map').replace(/[\\/:*?"<>|]/g,'')+'-gen'+G+'.'+ext; a.click(); flag('image exported'); }, type, fmt==='jpeg'?0.92:undefined);
+  cv.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(M.meta.name||'map').replace(/[\\/:*?"<>|]/g,'')+'-gen'+G+'.'+ext; a.click(); const mb=b.size/1048576; flag('exported · '+W+'×'+H+' · '+(mb>=1?mb.toFixed(1)+' MB':Math.round(b.size/1024)+' KB')); }, type, fmt==='jpeg'?0.92:undefined);
 }
 
 /* ===== shell ===== */
