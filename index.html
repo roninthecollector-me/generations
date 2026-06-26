@@ -44,6 +44,21 @@
   .tab{background:none;border:none;color:var(--ash);font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;padding:9px 13px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
   .tab:hover{color:var(--bone-dim)}
   .tab.active{color:var(--bone);border-bottom-color:var(--gold)}
+  /* Updates / changelog timeline */
+  .changelog{max-width:720px;margin-top:4px}
+  .cl-item{position:relative;padding:0 0 26px 26px;border-left:1px solid var(--line);margin-left:5px}
+  .cl-item:last-child{border-left-color:transparent;padding-bottom:6px}
+  .cl-dot{position:absolute;left:-5px;top:3px;width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px var(--ink)}
+  .cl-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px}
+  .cl-tag{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:3px 8px;border-radius:4px;border:1px solid var(--gold)}
+  .cl-tag.new{color:#1a1410;background:var(--gold)}
+  .cl-tag.polish{color:var(--gold);background:transparent}
+  .cl-date{font-family:var(--mono);font-size:11px;color:var(--ash)}
+  .cl-hash{font-family:var(--mono);font-size:11px;color:var(--ash-dim)}
+  .cl-title{font-family:var(--display);font-size:21px;color:var(--bone);margin:0 0 9px}
+  .cl-items{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:7px}
+  .cl-items li{position:relative;padding-left:16px;font-size:14px;color:var(--ash);line-height:1.55}
+  .cl-items li:before{content:"";position:absolute;left:2px;top:9px;width:4px;height:4px;border-radius:50%;background:var(--ash-dim)}
   .view{display:none}
   .view.active{display:block;animation:fade .3s ease}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -175,6 +190,7 @@
     <button class="tab active" data-view="map">Map</button>
     <button class="tab" data-view="panels">Panels</button>
     <button class="tab" data-view="about">Settings</button>
+    <button class="tab" data-view="updates">Updates</button>
   </nav>
 
   <section class="view active" id="v-map">
@@ -287,6 +303,13 @@
       <p class="note" style="margin:0">AI was used to build this tool. That is the full extent of its use here. No data is collected that we would ever share, your maps and uploads remain entirely yours, and nothing you create is ever accessed by people or AI, or used to train AI models.</p>
     </div>
     <div class="foot">Generations · local-first · no build step · <span id="storeFlag"></span></div>
+  </section>
+
+  <section class="view" id="v-updates">
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--ash-dim);margin-bottom:2px">Changelog</div>
+    <div class="toolbar"><h2>Updates</h2></div>
+    <p class="note" style="max-width:620px;margin-top:6px">Every patch we ship to Generations, newest first. We are building this in the open.</p>
+    <div class="changelog" id="changelogList" style="margin-top:18px"></div>
   </section>
 </div>
 <canvas id="panelCv" width="2400" height="3000"></canvas>
@@ -658,7 +681,33 @@ async function exportComposite(){
 }
 
 /* ===== shell ===== */
-function renderAll(){ renderHeader(); renderPanels(); renderAuth(); if(document.getElementById('v-map').classList.contains('active')) renderMap(); }
+function renderAll(){ renderHeader(); renderPanels(); renderAuth(); renderChangelog(); if(document.getElementById('v-map').classList.contains('active')) renderMap(); }
+
+/* ===== Updates / changelog (user-facing; newest first; prepend a new entry whenever we ship) ===== */
+const CHANGELOG=[
+  {date:'Jun 26, 2026',tag:'new',hash:'cd69c52',title:'Lighter map exports',items:[
+    'Choose your export resolution: Full (print), Large, or Web (small and easy to share online).',
+    'The export now reports the image size, so you know the file weight before you send it.']},
+  {date:'Jun 24, 2026',tag:'new',hash:'ef66221',title:'Square and landscape panels',items:[
+    'Set your panel shape per map: portrait, square, or landscape.']},
+  {date:'Jun 24, 2026',tag:'polish',hash:'778536c',title:'Sharper exports',items:[
+    'Export at full panel resolution, with a PNG or JPEG choice.']},
+  {date:'Jun 23, 2026',tag:'new',hash:'bbccdaf',title:'Export your whole map',items:[
+    'Compose every panel into a single image you can save and share.']},
+  {date:'Jun 23, 2026',tag:'new',hash:'7d56ca2',title:'Cloud sync and sharing',items:[
+    'Sign in (email or Google) to sync your maps across devices.',
+    'Publish a read-only link so others can view a map.']},
+  {date:'Jun 23, 2026',tag:'new',hash:'02a31ee',title:'Generations launches',items:[
+    'A standalone, local-first panel map viewer: click to add panels, walk the generations, and print templates.',
+    'Bring a Sortis Vellum world over to map it here.']},
+];
+function renderChangelog(){
+  const el=document.getElementById('changelogList'); if(!el) return;
+  el.innerHTML=CHANGELOG.map(e=>`<div class="cl-item"><span class="cl-dot"></span>
+    <div class="cl-head"><span class="cl-tag ${e.tag}">${e.tag}</span><span class="cl-date">${esc(e.date)}</span><span class="cl-hash">${esc(e.hash)}</span></div>
+    <div class="cl-title">${esc(e.title)}</div>
+    <ul class="cl-items">${e.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('');
+}
 function switchView(v){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===v)); document.querySelectorAll('.view').forEach(s=>s.classList.remove('active')); document.getElementById('v-'+v).classList.add('active'); if(v==='map') renderMap(); }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchView(t.dataset.view));
 
