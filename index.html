@@ -59,6 +59,16 @@
   .cl-items{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:7px}
   .cl-items li{position:relative;padding-left:16px;font-size:14px;color:var(--ash);line-height:1.55}
   .cl-items li:before{content:"";position:absolute;left:2px;top:9px;width:4px;height:4px;border-radius:50%;background:var(--ash-dim)}
+  /* collapsible Updates section (under Settings) */
+  .upd{border:1px solid var(--line);border-radius:8px;max-width:720px;margin-top:6px;overflow:hidden}
+  .upd>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;padding:14px 16px;font-family:var(--display);font-size:17px;color:var(--bone)}
+  .upd>summary::-webkit-details-marker{display:none}
+  .upd>summary .tag{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--ash-dim)}
+  .upd>summary .chev{margin-left:auto;font-size:18px;transition:transform .2s;color:var(--gold)}
+  .upd>summary:hover .chev{color:var(--bone)}
+  .upd[open]>summary{color:var(--bone);border-bottom:1px solid var(--line)}
+  .upd[open]>summary .chev{transform:rotate(90deg)}
+  .upd .upd-body{padding:18px 16px 8px}
   .view{display:none}
   .view.active{display:block;animation:fade .3s ease}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -190,7 +200,6 @@
     <button class="tab active" data-view="map">Map</button>
     <button class="tab" data-view="panels">Panels</button>
     <button class="tab" data-view="about">Settings</button>
-    <button class="tab" data-view="updates">Updates</button>
   </nav>
 
   <section class="view active" id="v-map">
@@ -302,14 +311,16 @@
     <div class="form" style="max-width:560px">
       <p class="note" style="margin:0">AI was used to build this tool. That is the full extent of its use here. No data is collected that we would ever share, your maps and uploads remain entirely yours, and nothing you create is ever accessed by people or AI, or used to train AI models.</p>
     </div>
-    <div class="foot">Generations · local-first · no build step · <span id="storeFlag"></span></div>
-  </section>
 
-  <section class="view" id="v-updates">
-    <div style="font-family:var(--mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--ash-dim);margin-bottom:2px">Changelog</div>
-    <div class="toolbar"><h2>Updates</h2></div>
-    <p class="note" style="max-width:620px;margin-top:6px">Every patch we ship to Generations, newest first. We are building this in the open.</p>
-    <div class="changelog" id="changelogList" style="margin-top:18px"></div>
+    <details class="upd" style="margin-top:30px">
+      <summary>Updates<span class="tag">changelog</span><span class="chev">›</span></summary>
+      <div class="upd-body">
+        <p class="note" style="margin:0 0 16px">Every patch we ship to Generations, newest first. We are building this in the open.</p>
+        <div class="changelog" id="changelogList"></div>
+      </div>
+    </details>
+
+    <div class="foot">Generations · local-first · no build step · <span id="storeFlag"></span></div>
   </section>
 </div>
 <canvas id="panelCv" width="2400" height="3000"></canvas>
