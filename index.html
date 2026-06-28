@@ -288,6 +288,7 @@
         <select id="mapShape">
           <option value="portrait">Portrait · 8×10 (tall)</option>
           <option value="9x12">Portrait · 9×12 (taller)</option>
+          <option value="a4">Portrait · A4 (210×297)</option>
           <option value="square">Square · e.g. 4×4</option>
           <option value="landscape">Landscape · 10×8 (wide)</option>
         </select>
@@ -510,7 +511,7 @@ function renderPanels(){
 let mapGen=null, mapView={scale:1,x:0,y:0}, mapViewInit=false, mapObserver=null, mapWired=false;
 const CW=128, GAP=8;
 // Per-map panel shape → cell aspect (height ÷ width). Default 8×10 portrait.
-function panelAspect(){ const s=(M.settings&&M.settings.panelShape)||'portrait'; return s==='square'?1:(s==='landscape'?0.8:(s==='9x12'?(12/9):1.25)); }
+function panelAspect(){ const s=(M.settings&&M.settings.panelShape)||'portrait'; return s==='square'?1:(s==='landscape'?0.8:(s==='9x12'?(12/9):(s==='a4'?(297/210):1.25))); }
 function xyOf(coord){ const c=parseCoord(coord); return { x:(c.ed==='W'?-c.em:c.em), y:-(c.nd==='S'?-c.nm:c.nm) }; }
 function coordFromXY(x,y){ const ns=-y; return normCoord(Math.abs(ns), ns<0?'S':'N', Math.abs(x), x<0?'W':'E'); }
 function applyMapTransform(){ const c=document.getElementById('mapCanvas'); if(c) c.style.transform='translate('+mapView.x+'px,'+mapView.y+'px) scale('+mapView.scale+')'; }
