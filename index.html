@@ -53,6 +53,7 @@
   .cl-tag{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:3px 8px;border-radius:4px;border:1px solid var(--gold)}
   .cl-tag.new{color:#1a1410;background:var(--gold)}
   .cl-tag.polish{color:var(--gold);background:transparent}
+  .cl-by{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;border-radius:4px;border:1px solid var(--verd);color:var(--verd)}
   .cl-date{font-family:var(--mono);font-size:11px;color:var(--ash)}
   .cl-hash{font-family:var(--mono);font-size:11px;color:var(--ash-dim)}
   .cl-title{font-family:var(--display);font-size:21px;color:var(--bone);margin:0 0 9px}
@@ -698,12 +699,12 @@ function renderAll(){ renderHeader(); renderPanels(); renderAuth(); renderChange
 
 /* ===== Updates / changelog (user-facing; newest first; prepend a new entry whenever we ship) ===== */
 const CHANGELOG=[
-  {date:'Jun 27, 2026',tag:'new',hash:'60a92b5',title:'9 x 12 panels',items:[
+  {date:'Jun 27, 2026',tag:'new',hash:'60a92b5',by:'CarlCinco',title:'9 x 12 panels',items:[
     'A new 9 x 12 panel shape in Settings, for taller portrait panels.']},
   {date:'Jun 26, 2026',tag:'new',hash:'cd69c52',title:'Lighter map exports',items:[
     'Choose your export resolution: Full (print), Large, or Web (small and easy to share online).',
     'The export now reports the image size, so you know the file weight before you send it.']},
-  {date:'Jun 24, 2026',tag:'new',hash:'ef66221',title:'Square and landscape panels',items:[
+  {date:'Jun 24, 2026',tag:'new',hash:'ef66221',by:'Crow',title:'Square and landscape panels',items:[
     'Set your panel shape per map: portrait, square, or landscape.']},
   {date:'Jun 24, 2026',tag:'polish',hash:'778536c',title:'Sharper exports',items:[
     'Export at full panel resolution, with a PNG or JPEG choice.']},
@@ -719,7 +720,7 @@ const CHANGELOG=[
 function renderChangelog(){
   const el=document.getElementById('changelogList'); if(!el) return;
   el.innerHTML=CHANGELOG.map(e=>`<div class="cl-item"><span class="cl-dot"></span>
-    <div class="cl-head"><span class="cl-tag ${e.tag}">${e.tag}</span><span class="cl-date">${esc(e.date)}</span><span class="cl-hash">${esc(e.hash)}</span></div>
+    <div class="cl-head"><span class="cl-tag ${e.tag}">${e.tag}</span><span class="cl-date">${esc(e.date)}</span><span class="cl-hash">${esc(e.hash)}</span>${e.by?`<span class="cl-by">Requested by ${esc(e.by)}</span>`:''}</div>
     <div class="cl-title">${esc(e.title)}</div>
     <ul class="cl-items">${e.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('');
 }
