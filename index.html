@@ -212,6 +212,7 @@
       <button class="mini" id="mapResetView">Reset view</button>
       <select id="mapRes" title="Export resolution" style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 6px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ash)"><option value="1800">Full res</option><option value="1000">Large</option><option value="550">Web</option></select>
       <select id="mapFormat" style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 6px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ash)"><option value="png">PNG</option><option value="jpeg">JPEG</option></select>
+      <label title="Show panel coordinates on the exported image" style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ash);display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="mapCoords" checked style="accent-color:var(--gold);width:auto;margin:0"> Coords</label>
       <button class="mini go" id="mapExport">Export image</button>
       <span class="map-hint">Click an empty cell to add a panel</span>
     </div>
@@ -657,6 +658,7 @@ async function imgBlobFor(coord,gen){
 async function exportComposite(){
   if(!M.panels.length){ alert('Add some panels first.'); return; }
   const G=mapGen||maxGen();
+  const coords=document.getElementById('mapCoords') ? document.getElementById('mapCoords').checked : true;
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
   M.panels.forEach(p=>{ const{x,y}=xyOf(p.coord); minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y); });
   const cols=maxX-minX+1, rows=maxY-minY+1;
@@ -681,10 +683,10 @@ async function exportComposite(){
         const s=Math.max(cw/bm.width, ch/bm.height), dw=bm.width*s, dh=bm.height*s, dx=gx+(cw-dw)/2, dy=gy+(ch-dh)/2;
         ctx.save(); ctx.beginPath(); ctx.rect(gx,gy,cw,ch); ctx.clip(); ctx.drawImage(bm,dx,dy,dw,dh); ctx.restore(); drew=true; if(bm.close)bm.close();
       }catch(e){} } }
-    if(!drew){ ctx.fillStyle='#242019'; ctx.fillRect(gx,gy,cw,ch); ctx.fillStyle='#5f594e'; ctx.font='600 '+Math.round(cw*0.12)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.coord,gx+cw/2,gy+ch/2); }
-    const th=Math.max(15,Math.round(cw*0.085)); ctx.font='600 '+Math.round(th*0.66)+'px monospace'; const tw=ctx.measureText(p.coord).width+12;
-    ctx.fillStyle='rgba(20,18,13,0.8)'; ctx.fillRect(gx+5,gy+ch-5-th,tw,th);
-    ctx.fillStyle='#c9a24b'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(p.coord,gx+11,gy+ch-5-th/2);
+    if(!drew){ ctx.fillStyle='#242019'; ctx.fillRect(gx,gy,cw,ch); if(coords){ ctx.fillStyle='#5f594e'; ctx.font='600 '+Math.round(cw*0.12)+'px Georgia, serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.coord,gx+cw/2,gy+ch/2); } }
+    if(coords){ const th=Math.max(15,Math.round(cw*0.085)); ctx.font='600 '+Math.round(th*0.66)+'px monospace'; const tw=ctx.measureText(p.coord).width+12;
+      ctx.fillStyle='rgba(20,18,13,0.8)'; ctx.fillRect(gx+5,gy+ch-5-th,tw,th);
+      ctx.fillStyle='#c9a24b'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(p.coord,gx+11,gy+ch-5-th/2); }
   }
   ctx.fillStyle='#e9e1d0'; ctx.font='600 '+Math.round(CAPH*0.42)+'px Georgia, serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
   ctx.fillText(M.meta.name||'Map', PAD, PAD+CAPH*0.42);
