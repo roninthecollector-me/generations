@@ -704,6 +704,9 @@ function renderAll(){ renderHeader(); renderPanels(); renderAuth(); renderChange
 
 /* ===== Updates / changelog (user-facing; newest first; prepend a new entry whenever we ship) ===== */
 const CHANGELOG=[
+  {date:'Jun 30, 2026',tag:'polish',hash:'1daf145',by:'Chris (vibe coding security)',note:'Thanks to',title:'Shared maps hardened against XSS',items:[
+    "A read-only shared map can no longer run code in a viewer's browser: image URLs are validated against our storage host and built safely, never injected as HTML.",
+    'Found during a security audit of the app. Thank you for the checklist.']},
   {date:'Jun 28, 2026',tag:'new',hash:'fb3e369',by:'tantedante',title:'A4 panels',items:[
     'Pick A4 (210 x 297) in Settings, the standard ISO page size.']},
   {date:'Jun 27, 2026',tag:'new',hash:'60a92b5',by:'CarlCinco',title:'9 x 12 panels',items:[
@@ -727,7 +730,7 @@ const CHANGELOG=[
 function renderChangelog(){
   const el=document.getElementById('changelogList'); if(!el) return;
   el.innerHTML=CHANGELOG.map(e=>`<div class="cl-item"><span class="cl-dot"></span>
-    <div class="cl-head"><span class="cl-tag ${e.tag}">${e.tag}</span><span class="cl-date">${esc(e.date)}</span><span class="cl-hash">${esc(e.hash)}</span>${e.by?`<span class="cl-by">Requested by ${esc(e.by)}</span>`:''}</div>
+    <div class="cl-head"><span class="cl-tag ${e.tag}">${e.tag}</span><span class="cl-date">${esc(e.date)}</span><span class="cl-hash">${esc(e.hash)}</span>${e.by?`<span class="cl-by">${esc(e.note||'Requested by')} ${esc(e.by)}</span>`:''}</div>
     <div class="cl-title">${esc(e.title)}</div>
     <ul class="cl-items">${e.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('');
 }
