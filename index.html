@@ -354,7 +354,8 @@ async function imgClear(){ const db=await imgDB(); return new Promise((res,rej)=
 
 const urlCache={};
 async function imgURL(key){
-  if(PUB) return PUB.urls[key]||null;                 // read-only shared view → public URLs
+  if(PUB){ const u=PUB.urls[key];                      // read-only shared view → public URLs (publisher-controlled, so validate)
+    return (typeof u==='string' && CFG.supabaseUrl && u.indexOf(CFG.supabaseUrl+'/storage/')===0) ? u : null; }
   if(urlCache[key]) return urlCache[key];
   let blob=await imgGet(key);
   if(!blob && cloudReady && sbUser){ blob=await cloudFetch(key); if(blob) await imgPut(key,blob); }  // pull from cloud, cache locally
@@ -604,7 +605,8 @@ async function showLightbox(){
   document.getElementById('lbNext').disabled=lbState.idx>=lbState.gens.length-1;
   document.getElementById('lbMeta').innerHTML='<b>'+esc(p.coord)+'</b> · gen '+gen+(p.label?' · '+esc(p.label):'')+(p.founded?' · yr '+p.founded:'');
   const url=await imgURL(imgKey(p.coord,gen)); if(!lbState) return;
-  wrap.innerHTML = url ? '<img src="'+url+'" alt="'+esc(p.coord)+' gen '+gen+'">' : '<div class="loading">Image missing</div>';
+  if(url){ const img=document.createElement('img'); img.src=url; img.alt=p.coord+' gen '+gen; wrap.innerHTML=''; wrap.appendChild(img); }
+  else { wrap.innerHTML='<div class="loading">Image missing</div>'; }
 }
 function closeLightbox(){ lbState=null; document.getElementById('lightbox').classList.remove('show'); document.getElementById('lbImgWrap').innerHTML=''; }
 
