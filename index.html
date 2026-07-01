@@ -114,7 +114,7 @@
   .map-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;background:var(--soil);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
   .map-gen-label{font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ash)}
   #mapGenRange{flex:1;min-width:160px;accent-color:var(--gold)}
-  .map-gen-val{font-family:var(--mono);font-size:13px;color:var(--gold);min-width:120px}
+  .map-gen-val{font-family:var(--mono);font-size:12px;color:var(--gold);letter-spacing:normal}
   .map-hint{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--ash);margin-left:auto}
   .map-stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:radial-gradient(900px 460px at 50% -10%,#2a251d,transparent 60%),var(--ink);height:64vh;min-height:380px;cursor:grab}
   .map-stage::before,.map-stage::after{content:"";position:absolute;width:14px;height:14px;z-index:3;pointer-events:none;color:var(--ash-dim)}
@@ -206,9 +206,8 @@
   <section class="view active" id="v-map">
     <div class="toolbar"><h2 id="mapName">My Map</h2><span class="pill cur" id="mapStatus">—</span></div>
     <div class="map-controls" id="mapControls" style="display:none">
-      <label class="map-gen-label">Generation</label>
+      <label class="map-gen-label">View Generation <span id="mapGenVal" class="map-gen-val">1</span></label>
       <input type="range" id="mapGenRange" min="1" max="1" step="1" value="1">
-      <span id="mapGenVal" class="map-gen-val">—</span>
       <button class="mini" id="mapResetView">Reset view</button>
       <select id="mapRes" title="Export resolution" style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 6px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ash)"><option value="1800">Full res</option><option value="1000">Large</option><option value="550">Web</option></select>
       <select id="mapFormat" style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 6px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ash)"><option value="png">PNG</option><option value="jpeg">JPEG</option></select>
@@ -535,7 +534,7 @@ function renderMap(){
     if(showWelcome){ const b=document.getElementById('mapEmptyAdd'); if(b) b.onclick=()=>{ if(addPanel(coordFromXY(0,0),'',0)){ persist(); renderAll(); } }; }
   }
   const range=document.getElementById('mapGenRange'); range.min=1; range.max=mg; range.value=mapGen;
-  document.getElementById('mapGenVal').textContent='Gen '+mapGen+(mg>1?' / '+mg:'');
+  document.getElementById('mapGenVal').textContent=mapGen;
   // bounds (expanded by one ring so you can extend the map by clicking)
   let minX=0,maxX=0,minY=0,maxY=0;
   if(M.panels.length){ minX=Infinity;maxX=-Infinity;minY=Infinity;maxY=-Infinity;
