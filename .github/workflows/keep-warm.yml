@@ -1,0 +1,26 @@
+name: Keep Supabase warm
+
+# Free-tier Supabase projects auto-pause after ~7 days with no database activity.
+# Generations is local-first (it only touches Supabase on cloud sign-in or when a
+# share link is published/viewed), so this light scheduled query keeps it active.
+# The anon key is public-safe: it already ships in config.js and is protected by RLS.
+
+on:
+  schedule:
+    - cron: '41 7 */2 * *'   # every 2 days at 07:41 UTC (well inside the 7-day pause window)
+  workflow_dispatch: {}        # allow manual runs from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST (a real DB query keeps the project from pausing)
+        env:
+          SUPABASE_URL: https://uqspzaiyjboabnuorbif.supabase.co
+          SUPABASE_ANON: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxc3B6YWl5amJvYWJudW9yYmlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNDUxMDQsImV4cCI6MjA5NzgyMTEwNH0.a99iCbJbHMLbQxlaa-u8zE03yS-SDuhr_4MvpjfAFFM
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "apikey: $SUPABASE_ANON" -H "Authorization: Bearer $SUPABASE_ANON" \
+            "$SUPABASE_URL/rest/v1/published_maps?select=id&limit=1")
+          echo "Supabase REST ping -> HTTP $code"
+          test "$code" = "200"
